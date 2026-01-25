@@ -21,10 +21,12 @@ class BridgeResponse(BaseModel):
 
 
 def handle_msg(msg: dict) -> BridgeResponse:
-    """Handles incoming message from Elixir
+    """Route messages based on type field.
 
     Args:
         msg (dict): Message received from Elixir
+            - "type": Message type for routing
+            - "_id": Request correlation ID (added automatically by Elixir)
 
     Returns:
         dict: A response dictionary
