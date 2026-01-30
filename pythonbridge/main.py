@@ -14,7 +14,7 @@ from typing import Optional, Any
 
 from pydantic import BaseModel
 
-from pythonbridge.core.reviewer import review_pr
+from pythonbridge.core.review import review_pr
 
 
 class BridgeResponse(BaseModel):
