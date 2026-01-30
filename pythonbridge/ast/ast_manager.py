@@ -1,4 +1,4 @@
-from tree_sitter import Language, Parser, Query, QueryCursor, Tree, Node
+from tree_sitter import Language, Parser, Query, QueryCursor, Node
 from typing import Generator
 import tree_sitter_python as tspython
 from collections import defaultdict
@@ -8,7 +8,8 @@ import os
 # PY_LANGUAGE = Language(tspython.language())
 # parser = Parser(PY_LANGUAGE)
 
-class AST_manager():
+
+class AST_manager:
     """
     Manages Abstract Syntax Tree (AST) parsing and relationship extraction for Python files.
 
@@ -21,6 +22,7 @@ class AST_manager():
         tree (Tree): The parsed AST of the current file
         current_file_name (str): Base name of the currently parsed file
     """
+
     def __init__(self):
         """Initialize the AST manager with a Python language parser."""
         self.language = Language(tspython.language())
@@ -36,7 +38,7 @@ class AST_manager():
             file_path (str): Absolute or relative path to the Python file to parse
         """
         try:
-            with open(file_path, 'r') as file:
+            with open(file_path, "r") as file:
                 content = file.read()
                 self.tree = self.parser.parse(bytes(content, "utf8"))
                 self.current_file_name = os.path.basename(file_path)
@@ -136,7 +138,8 @@ class AST_manager():
         relationships = defaultdict(list)
 
         # query for imports, functions, classes
-        query = Query(self.language,
+        query = Query(
+            self.language,
             """
             (import_statement) @import
             (import_from_statement) @import_from
@@ -148,117 +151,134 @@ class AST_manager():
             (class_definition
             name: (identifier) @class.def
             body: (block) @class.block)
-            """)
+            """,
+        )
 
         query_cursor = QueryCursor(query)
         captures = query_cursor.captures(self.tree.root_node)
 
         # extract regular imports (import os)
         if "import" in captures:
-            for node in captures['import']:
-                relationships["imports"].append({
-                    "caller": self.current_file_name,
-                    "callee": node.text.decode('utf8'),
-                    "location": (node.start_point, node.end_point)
-                })
+            for node in captures["import"]:
+                relationships["imports"].append(
+                    {
+                        "caller": self.current_file_name,
+                        "callee": node.text.decode("utf8"),
+                        "location": (node.start_point, node.end_point),
+                    }
+                )
 
         # extract from imports (from x import y)
         if "import_from" in captures:
-            for node in captures['import_from']:
-                relationships["imports_from"].append({
-                    "caller": self.current_file_name,
-                    "callee": node.text.decode('utf8'),
-                    "location": (node.start_point, node.end_point)
-                })
+            for node in captures["import_from"]:
+                relationships["imports_from"].append(
+                    {
+                        "caller": self.current_file_name,
+                        "callee": node.text.decode("utf8"),
+                        "location": (node.start_point, node.end_point),
+                    }
+                )
 
         # extract all class definitions
         if "class.def" in captures:
-            for node in captures['class.def']:
-                relationships["class_def"].append({
-                    "caller": self.current_file_name,
-                    "callee": node.text.decode('utf8'),
-                    "location": (node.start_point, node.end_point)
-                })
+            for node in captures["class.def"]:
+                relationships["class_def"].append(
+                    {
+                        "caller": self.current_file_name,
+                        "callee": node.text.decode("utf8"),
+                        "location": (node.start_point, node.end_point),
+                    }
+                )
 
         # extract all function definitions
         if "function.def" in captures:
-            for node in captures['function.def']:
+            for node in captures["function.def"]:
                 if self.check_parent_is_class(node):
                     continue
                 self.print_node_vals(node)
-                relationships["function_def"].append({
-                    "caller": self.current_file_name,
-                    "callee": node.text.decode('utf8'),
-                    "location": (node.start_point, node.end_point)
-                })
+                relationships["function_def"].append(
+                    {
+                        "caller": self.current_file_name,
+                        "callee": node.text.decode("utf8"),
+                        "location": (node.start_point, node.end_point),
+                    }
+                )
 
         # extract all methods within classes
         if "class.def" in captures:
             # every class found in a file
-            for i, class_name_node in enumerate(captures['class.def']):
-                class_name = class_name_node.text.decode('utf8')
-                class_body = captures['class.block'][i]
+            for i, class_name_node in enumerate(captures["class.def"]):
+                class_name = class_name_node.text.decode("utf8")
+                class_body = captures["class.block"][i]
 
                 # search through all the nodes within the class body
                 for node in self.traverse_tree(class_body):
                     # (the method in the class)
                     if node.type == "function_definition":
                         # function name within class
-                        method_name_node = node.child_by_field_name('name')
+                        method_name_node = node.child_by_field_name("name")
                         if method_name_node:
-                            callee_name = method_name_node.text.decode('utf8')
+                            callee_name = method_name_node.text.decode("utf8")
 
                             if callee_name:
-                                relationships["method"].append({
-                                    "caller": class_name,
-                                    "callee": callee_name,
-                                    "type": "class_method",
-                                    "location": (node.start_point,node.end_point)
-                                })
+                                relationships["method"].append(
+                                    {
+                                        "caller": class_name,
+                                        "callee": callee_name,
+                                        "type": "class_method",
+                                        "location": (node.start_point, node.end_point),
+                                    }
+                                )
 
         # extract all other function calls within functions and class instantiations
         if "function.def" in captures:
             # enumerate will line function name with the body (0 with 0, 1 with 1, etc.)
-            for i, func_name_node in enumerate(captures['function.def']):
+            for i, func_name_node in enumerate(captures["function.def"]):
                 if self.check_parent_is_class(func_name_node):
                     continue
-                func_name = func_name_node.text.decode('utf8')
-                func_body = captures['function.block'][i]
+                func_name = func_name_node.text.decode("utf8")
+                func_body = captures["function.block"][i]
                 # loop through the function body and search for function calls
                 for node in self.traverse_tree(func_body):
                     # call nodes represent any function calls
                     if node.type == "call":
-                        function_name_node = node.child_by_field_name('function')
+                        function_name_node = node.child_by_field_name("function")
                         if function_name_node:
-                            callee_name = function_name_node.text.decode('utf8')
+                            callee_name = function_name_node.text.decode("utf8")
 
                             # safety check for empty string
                             if callee_name:
                                 # if class instantiation
                                 if callee_name[0].isupper():
-                                    relationships["instantiation"].append({
-                                    "caller": func_name,
-                                    "callee": callee_name,
-                                    "type": "class_instantiation",
-                                    "location": (node.start_point, node.end_point)
-                                })
+                                    relationships["instantiation"].append(
+                                        {
+                                            "caller": func_name,
+                                            "callee": callee_name,
+                                            "type": "class_instantiation",
+                                            "location": (
+                                                node.start_point,
+                                                node.end_point,
+                                            ),
+                                        }
+                                    )
 
                                 # regular function
                                 else:
-                                    relationships["call"].append({
-                                        "caller": func_name,
-                                        "callee": callee_name,
-                                        "type": "function_call",
-                                        "location": (node.start_point, node.end_point)
-                                })
+                                    relationships["call"].append(
+                                        {
+                                            "caller": func_name,
+                                            "callee": callee_name,
+                                            "type": "function_call",
+                                            "location": (
+                                                node.start_point,
+                                                node.end_point,
+                                            ),
+                                        }
+                                    )
 
         return dict(relationships)
-
-
 
 
 test = AST_manager()
 test.create_ast("/Users/joshualee/sniper/sniper/pythonbridge/core/reviewer.py")
 print(test.get_relationships())
-
-
